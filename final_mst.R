@@ -12,6 +12,42 @@ set.seed(20190909)
 ## Functions ##
 ###############
 
+#' Generate graph
+#' 
+#' This function generates a graph.
+#' The vertex names are the numbers 1 through N,
+#' but as characters, not integers or floats.
+#' 
+#' @param type This is the type of graph.
+#' Options are "PA" for preferential attachment,
+#' "ER" for G(n,p),
+#' "complete", "normal" for vertices drawn
+#' from a bivariate standard normal distribution
+#' (and edge weights corresponding to distance),
+#' and "SBM" for starting with a "normal" graph
+#' and then adding to each coordinate
+#' 1 times the sign of that coordinate
+#' (thus separating the four quadrants from
+#' each other).
+#' @param N Number of vertices in the graph.
+#' @param m Number of new edges emanating
+#' from each new vertex in a preferential
+#' attachment graph.
+#' @param d Distribution to draw from
+#' for the edge weights.
+#' Options are "uniform", "gamma",
+#' "folded normal", "exponential",
+#' and "1".
+#' The "1" means that every edge has weight 1.
+#' No matter which distribution is chosen,
+#' the edge weights are independent and identically
+#' distributed.
+#' @param r Number of digits
+#' to round the edge weights to.
+#' Any resulting zeroes are changed to half
+#' the minimum edge weight.
+#' 
+#' @return A graph.
 genGraph <- function(type,
                      N = 1e2,
                      m = 3,
@@ -69,6 +105,45 @@ genGraph <- function(type,
   return(g)
 }
 
+#' Get subgraph
+#' 
+#' Sample the vertices of a graph and return
+#' either the vertices or the induced subgraph. 
+#' 
+#' @param g A graph.
+#' @param p Proportion of vertices to sample.
+#' @param V1 Vector of vertex names.
+#' Should be in order such that there is
+#' an edge between the ith element of V1
+#' and the ith element of V2.
+#' In other words,
+#' the edges in g are given by rows of cbind(V1,V2).
+#' E(g) must be in the same order as cbind(V1,V2).
+#' @param V2 
+#' @param type Type of sampling.
+#' Options are "uniform"
+#' (sample vertices uniformly at random);
+#' "far" (if the graph is complete,
+#' sample vertices in proportion to their strength,
+#' or total edge weight;
+#' if the graph is not complete,
+#' sample vertices in approximately inverse
+#' proportion to their degree);
+#' "near" (if the graph is complete,
+#' sample vertices in roughly inverse proportion to their strength,
+#' or total edge weight;
+#' if the graph is not complete,
+#' sample vertices in approximate
+#' proportion to their degree);
+#' "walk" (random walk,
+#' as described in manuscript);
+#' and "quadrant" (uses points
+#' in specified quadrants of the Cartesian plane).
+#' @param returnVertices 
+#' 
+#' @return If returnVertices is TRUE,
+#' a character vector of vertex names.
+#' Otherwise, the subgraph induced by sampling.
 getSubGraph <- function(g,
                         p,
                         V1,
@@ -157,6 +232,45 @@ getSubGraph <- function(g,
   }
 }
 
+#' Sample graph and check edges of MST
+#' 
+#' This function takes in a graph g,
+#' samples the vertices to get a subgraph,
+#' finds the MST of the subgraph,
+#' and returns information about which edges
+#' from the original graph were either
+#' (a) in the subgraph's MST or
+#' (b) in the subgraph but not in
+#' the subgraph's MST.
+#' 
+#' @param g A graph.
+#' @param p Proportion of vertices to sample.
+#' @param V1 Vector of vertex names.
+#' Should be in order such that there is
+#' an edge between the ith element of V1
+#' and the ith element of V2.
+#' In other words,
+#' the edges in g are given by rows of cbind(V1,V2).
+#' E(g) must be in the same order as cbind(V1,V2).
+#' @param V2 
+#' @param type Type of sampling.
+#' Options are described in getSubGraph.
+#' 
+#' @return A numeric vector twice the length of V1
+#' (i.e., with twice as many elements as there are edges
+#' in g).
+#' For the first half of the returned vector,
+#' a 1 indicates that the corresponding edge
+#' in g was in the subgraph's MST;
+#' a 0 indicates that the corresponding edge
+#' in g was not in the subgraph's MST.
+#' For the second half of the returned vector,
+#' a 1 indicates that the corresponding edge
+#' in g was in the subgraph but not in
+#' the subgraph's MST;
+#' a 0 indicates that the corresponding edge
+#' in g was either not in the subgraph at all
+#' or was in the subgraph's MST.
 randMST <- function(g,p,V1,V2,type){
   
   # Sample from graph
@@ -193,6 +307,47 @@ randMST <- function(g,p,V1,V2,type){
            result2))
 }
 
+#' Single graph simulation
+#' 
+#' This function:
+#' (1) Simulates a graph g or accepts it as an argument;
+#' (2) Finds the MST of g;
+#' (3) For each p in (0.25,0.50,0.75) and
+#' each of a variety of sampling types,
+#' samples a subgraph h;
+#' (4) Finds the MST of h; and
+#' (5) Bootstraps from h.
+#' The process is described in the "Simulation Study"
+#' subsection of the "Methods" section of the manuscript.
+#' 
+#' @param typeOfGraph Either a graph
+#' or a type of graph to pass to genGraph.
+#' @param N Number of vertices
+#' to pass to genGraph.
+#' @param m Preferential attachment parameter
+#' to pass to genGraph.
+#' @param d Distribution to pass to genGraph.
+#' @param r Number of digits for rounding
+#' to pass to genGraph.
+#' 
+#' @return A numeric vector with 7 sections:
+#' (1) Length: For normal or SBM, 15; for anything else, 12.
+#' Contents: The PPV_i from step 5 of the simulation study.
+#' (2) Length: Same as for (1).
+#' Contents: The average BPPV_i from step 7 of the simulation study.
+#' (3) Length: Same as for (1).
+#' Contents: The AUC_i from step 8 of the simulation study.
+#' (4) Length: N.
+#' Contents: The degree distribution of g.
+#' (5) Length: Same as for (1).
+#' Contents: The NPV_i from step 5 of the simulation study
+#' (cut from the most recent version of the manuscript).
+#' (6) Length: Same as for (1).
+#' Contents: The average BNPV_i from step 7 of the simulation study
+#' (cut from the most recent version of the manuscript).
+#' (7) Length: Same as for (1).
+#' Contents: The NPV AUC_i from step 8 of the simulation study
+#' (cut from the most recent version of the manuscript).
 sim <- function(typeOfGraph,
                 N = 1e2,
                 m = 3,
@@ -380,6 +535,22 @@ sim <- function(typeOfGraph,
            AUCs2))
 }
 
+#' Make table
+#' 
+#' This function takes the results of running many iterations
+#' of the sim function and produces a table in LaTeX code.
+#' 
+#' @param result A matrix where each row is the result of
+#' a single iteration of the function sim.
+#' @param n A vector of three elements denoting
+#' the number of vertices sampled.
+#' For the simulated graphs, the number of vertices in g is always 100,
+#' and the proportions of sampled nodes are always (0.25,0.50,0.75),
+#' so this is always (25,50,75).
+#' @param symbol This is always "theta".
+#' In a previous version of the manuscript, another Greek letter
+#' was used to denote the NPV as opposed to the PPV,
+#' but that was cut.
 makeTable <- function(result,
                       n,
                       symbol = "theta"){
@@ -501,6 +672,18 @@ makeTable <- function(result,
   }
 }
 
+#' Get PPV
+#' 
+#' This function takes a graph g and a vector v of vertices in the graph.
+#' It finds the subgraph h induced by selecting only the vertices in v.
+#' It returns the proportion of edges in the MST of h that are also in
+#' the MST of g.
+#' This function is used for the HIV data set.
+#' 
+#' @param g A graph.
+#' @param v A vector of vertices in g to sample.
+#' 
+#' @return The PPV.
 getProp <- function(g,v){
   
   # Make data frame
@@ -533,11 +716,31 @@ getProp <- function(g,v){
   return(sum(data$mstG * data$mstH) / sum(data$mstH))
 }
 
+#' Get mean
+#' 
+#' Computes the expected number of unique values when sampling M times
+#' with replacement from a set of $m$ values.
+#' This is from a previous draft of the manuscript.
+#' 
+#' @param m The number of values you're drawing from.
+#' @param M The number of draws (with replacement).
+#' 
+#' @return Mean.
 getMean <- function(m,M){
   result <- M * ((m - 1) / m)^(M - 1)
   return(result)
 }
 
+#' Get SD
+#' 
+#' Computes the SD of the number of unique values when sampling M times
+#' with replacement from a set of $m$ values.
+#' This is from a previous draft of the manuscript.
+#' 
+#' @param m The number of values you're drawing from.
+#' @param M The number of draws (with replacement).
+#' 
+#' @return SD.
 getSD <- function(m,M){
   term1 <- getMean(m,M)
   term2 <- M * (M - 1) * (m - 1) / m * ((m - 2) / m)^(M - 2)
@@ -546,6 +749,21 @@ getSD <- function(m,M){
   return(result)
 }
 
+#' Randomize edge order, by weight
+#' 
+#' This function takes the edge weights of a graph and assigns each
+#' edge a rank.
+#' The smallest edge is assigned rank 1, the second-smallest edge
+#' is assigned rank 2, and so forth.
+#' If any edges have the same weight, the ranking is randomized
+#' among those edges.
+#' If, for example, the edge weights are (2,1,2),
+#' the function is equally likely to return (3,1,2) and (2,1,3).
+#' 
+#' @param edgeWeights The edge weights of a graph.
+#' 
+#' @return Ranks of the edges, with 1 indicated the smallest edge weight.
+#' Ranks for edges with the same weight are randomized.
 randEdgeOrder <- function(edgeWeights){
   d <- as.data.frame(x = table(edgeWeights),
                      stringsAsFactors = FALSE)
@@ -567,6 +785,34 @@ randEdgeOrder <- function(edgeWeights){
   return(newVec)
 }
 
+#' Randomize edge order, get MST
+#' 
+#' This function takes a graph g and a vector of vertices v.
+#' Then it:
+#' (1) Uses randEdgeOrder to randomize the ordering of any edges
+#' with identical weight.
+#' (2) Gets the subgraph h of g induced from the vertices in v.
+#' (3) Finds the MST of g and the MST of h.
+#' (4) Returns information abut which edges of g are in the MSTs
+#' of g and h.
+#' 
+#' @param g A graph.
+#' @param v Vertices of g to use to create a subgraph h.
+#' @param V1 Vector of vertex names.
+#' Should be in order such that there is
+#' an edge between the ith element of V1
+#' and the ith element of V2.
+#' In other words,
+#' the edges in g are given by rows of cbind(V1,V2).
+#' E(g) must be in the same order as cbind(V1,V2).
+#' @param V2 
+#' 
+#' @return A vector twice the length of V1.
+#' In the first half, a 1 indicates that the corresponding edge of g
+#' is in the MST of h.
+#' In the second half, a 1 indicates that the corresponding edge of g
+#' is in the MST of g.
+#' All other elements are 0.
 randMSTOrd <- function(g,v,V1,V2){
   E(g)$weight <- randEdgeOrder(E(g)$weight)
   h <- induced_subgraph(graph = g,
@@ -585,6 +831,28 @@ randMSTOrd <- function(g,v,V1,V2){
   return(c(x,y))
 }
 
+#' Get regression slope
+#' 
+#' This function is used with the HIV data
+#' when sampling by 3-digit zip code prefix.
+#' It takes a graph g and a vector of vertices v.
+#' It runs randMSTOrd 100 times on g and returns the slope of a
+#' simple linear regression of the number of population MSTs
+#' an edge is in on the number of sample MSTs an edge is in.
+#' I don't think this was used in the manuscript.
+#' 
+#' @param g A graph.
+#' @param v Vertices of g to use to create a subgraph h.
+#' @param V1 Vector of vertex names.
+#' Should be in order such that there is
+#' an edge between the ith element of V1
+#' and the ith element of V2.
+#' In other words,
+#' the edges in g are given by rows of cbind(V1,V2).
+#' E(g) must be in the same order as cbind(V1,V2).
+#' @param V2 
+#' 
+#' @return Slope of simple linear regression.
 getB <- function(g,
                  v,
                  V1,
@@ -597,97 +865,6 @@ getB <- function(g,
   y <- x[(length(V1) + 1):length(x)]
   x <- x[1:length(V1)]
   b <- sum(x * y) / sum(x^2)
-  
-  return(b)
-}
-
-simOrd <- function(typeOfGraph,
-                   N = 1e2,
-                   m = 3,
-                   d = "uniform",
-                   r = 2){
-  
-  # Generate graph
-  if(class(typeOfGraph) == "igraph"){
-    g <- typeOfGraph
-    N <- vcount(g)
-  } else if (class(typeOfGraph) == "character"){
-    g <- genGraph(type = typeOfGraph,
-                  N = N,
-                  m = m,
-                  d = d,
-                  r = r)
-  }
-  
-  # Make data frame
-  data <- as.data.frame(x = as_edgelist(g),
-                        stringsAsFactors = FALSE)
-  
-  # Sample, calculate MST, and record edges
-  test1 <- class(typeOfGraph) == "character" && typeOfGraph == "normal"
-  test2 <- class(typeOfGraph) == "igraph" && !is.null(typeOfGraph$coord1)
-  if(test1 | test2){
-    b <- rep(x = NA,
-             times = 15)
-    names(b) <- c("uniform25",
-                  "far25",
-                  "near25",
-                  "walk25",
-                  "quadrant25",
-                  "uniform50",
-                  "far50",
-                  "near50",
-                  "walk50",
-                  "quadrant50",
-                  "uniform75",
-                  "far75",
-                  "near75",
-                  "walk75",
-                  "quadrant75")
-    typeOfSampling <- c("uniform",
-                        "far",
-                        "near",
-                        "walk",
-                        "quadrant")
-  } else {
-    b <- rep(x = NA,
-             times = 12)
-    names(b) <- c("uniform25",
-                  "far25",
-                  "near25",
-                  "walk25",
-                  "uniform50",
-                  "far50",
-                  "near50",
-                  "walk50",
-                  "uniform75",
-                  "far75",
-                  "near75",
-                  "walk75")
-    typeOfSampling <- c("uniform",
-                        "far",
-                        "near",
-                        "walk")
-  }
-  
-  p <- c(0.25,0.5,0.75)
-  for(j in 1:length(p)){
-    for(k in 1:length(typeOfSampling)){
-      index <- (j - 1) * length(typeOfSampling) + k
-      
-      # Sample from graph
-      v <- getSubGraph(g = g,
-                       p = p[j],
-                       V1 = data$V1,
-                       V2 = data$V2,
-                       type = typeOfSampling[k],
-                       returnVertices = TRUE)
-      b[index] <- getB(g = g,
-                       v = v,
-                       V1 = data$V1,
-                       V2 = data$V2)
-    }
-  }
   
   return(b)
 }
